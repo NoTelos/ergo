@@ -15,17 +15,18 @@ import scorex.core.api.http.ApiError.BadRequest
 import scorex.core.api.http.ApiResponse
 import scorex.core.settings.RESTApiSettings
 import scorex.util.encode.Base16
-import sigmastate.Values.{ErgoTree, SigmaBoolean}
+import sigmastate.Values.{ByteArrayConstant, ErgoTree, SigmaBoolean}
 import sigmastate._
 import sigmastate.basics.DLogProtocol.ProveDlog
 import sigmastate.basics.ProveDHTuple
 import sigmastate.eval.{CompiletimeIRContext, IRContext, RuntimeIRContext}
 import sigmastate.lang.SigmaCompiler
+import sigmastate.serialization.ValueSerializer
 import special.sigma.AnyValue
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
-import scala.util.{Success, Failure, Try}
+import scala.util.{Failure, Success, Try}
 
 case class CryptoResult(value: SigmaBoolean, cost: Long)
 
@@ -43,6 +44,7 @@ case class ScriptApiRoute(readersHolder: ActorRef, ergoSettings: ErgoSettings)
       // p2shAddressR ~
       p2sAddressR ~
       addressToTreeR ~
+      addressToBytesR ~
       executeWithContextR
     }
   }
@@ -128,11 +130,11 @@ case class ScriptApiRoute(readersHolder: ActorRef, ergoSettings: ErgoSettings)
         case dht: ProveDHTuple => Map("op" -> op, "g" -> dht.g.asJson, "h" -> dht.h.asJson, "u" -> dht.u.asJson, "v" -> dht.v.asJson).asJson
         case tp: TrivialProp   => Map("op" -> op, "condition" -> tp.condition.asJson).asJson
         case and: CAND =>
-          Map("op" -> op, "args" -> and.sigmaBooleans.map(_.asJson).asJson).asJson
+          Map("op" -> op, "args" -> and.children.map(_.asJson).asJson).asJson
         case or: COR =>
-          Map("op" -> op, "args" -> or.sigmaBooleans.map(_.asJson).asJson).asJson
+          Map("op" -> op, "args" -> or.children.map(_.asJson).asJson).asJson
         case th: CTHRESHOLD =>
-          Map("op" -> op, "args" -> th.sigmaBooleans.map(_.asJson).asJson).asJson
+          Map("op" -> op, "args" -> th.children.map(_.asJson).asJson).asJson
       }
   }
 
@@ -169,6 +171,18 @@ case class ScriptApiRoute(readersHolder: ActorRef, ergoSettings: ErgoSettings)
       .fold(
         e => BadRequest(e.getMessage),
         tree => ApiResponse(Map("tree" -> tree).asJson)
+      )
+  }
+
+  def addressToBytesR: Route = (get & path("addressToBytes" / Segment)) { addressStr =>
+    addressEncoder.fromString(addressStr)
+      .map(address => address.script.bytes)
+      .map(ByteArrayConstant.apply)
+      .map(ValueSerializer.serialize)
+      .map(Base16.encode)
+      .fold(
+        e => BadRequest(e.getMessage),
+        bs => ApiResponse(Map("bytes" -> bs).asJson)
       )
   }
 

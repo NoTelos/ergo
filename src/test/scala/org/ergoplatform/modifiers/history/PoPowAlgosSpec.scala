@@ -3,11 +3,12 @@ package org.ergoplatform.modifiers.history
 import org.ergoplatform.modifiers.history.popow.{PoPowHeader, PoPowParams, PoPowProof}
 import org.ergoplatform.modifiers.ErgoFullBlock
 import org.ergoplatform.nodeView.state.StateType
+import Extension.InterlinksVectorPrefix
 import org.ergoplatform.utils.generators.{ChainGenerator, ErgoGenerators}
 import org.scalacheck.Gen
 import org.scalatest.prop.GeneratorDrivenPropertyChecks
 import org.scalatest.{Matchers, PropSpec}
-import scorex.util.ModifierId
+import scorex.util.{ModifierId, bytesToId}
 import org.ergoplatform.utils.HistoryTestHelpers
 
 class PoPowAlgosSpec
@@ -219,5 +220,24 @@ class PoPowAlgosSpec
     val prefix = toPoPoWChain(genChain(1))
     val suffix = toPoPoWChain(genChain(1))
     PoPowProof(0, 0, prefix, suffix.head, suffix.tail.map(_.header)).hasValidConnections() shouldBe false
+  }
+
+  property("proofForInterlink") {
+    val blockIds = Gen.listOfN(255, modifierIdGen).sample.get
+    val extension = PoPowAlgos.interlinksToExtension(blockIds)
+    val blockIdToProve = blockIds.head
+    val proof = proofForInterlink(extension, blockIdToProve)
+
+    proof shouldBe defined
+    val encodedField = proof.get.leafData
+    val numBytesKey = encodedField.head
+    val key = encodedField.tail.take(numBytesKey)
+    val prefix = key.head
+    val value = encodedField.drop(numBytesKey + 1)
+    val blockId = value.tail
+    numBytesKey shouldBe 2
+    prefix shouldBe InterlinksVectorPrefix
+    bytesToId(blockId) shouldBe blockIdToProve
+    proof.get.valid(extension.digest) shouldBe true
   }
 }

@@ -1,6 +1,5 @@
 package org.ergoplatform.modifiers.mempool
 
-import io.circe._
 import io.circe.syntax._
 import org.ergoplatform.SigmaConstants.{MaxBoxSize, MaxPropositionBytes}
 import org.ergoplatform._
@@ -14,6 +13,7 @@ import org.ergoplatform.settings.{Algos, ErgoValidationSettings}
 import org.ergoplatform.utils.BoxUtils
 import org.ergoplatform.wallet.interpreter.ErgoInterpreter
 import org.ergoplatform.wallet.protocol.context.TransactionContext
+import scorex.core.EphemerealNodeViewModifier
 import scorex.core.serialization.ScorexSerializer
 import scorex.core.transaction.Transaction
 import scorex.core.utils.ScorexEncoding
@@ -54,7 +54,7 @@ case class ErgoTransaction(override val inputs: IndexedSeq[Input],
                            override val sizeOpt: Option[Int] = None)
   extends ErgoLikeTransaction(inputs, dataInputs, outputCandidates)
     with Transaction
-    with MempoolModifier
+    with EphemerealNodeViewModifier
     with ErgoNodeViewModifier
     with ScorexLogging {
 
@@ -273,17 +273,6 @@ object ErgoTransaction extends ApiCodecs with ScorexLogging with ScorexEncoding 
     ErgoTransaction(tx.inputs, tx.dataInputs, tx.outputCandidates)
 
   val MaxAssetsPerBox = 255
-
-  implicit val transactionEncoder: Encoder[ErgoTransaction] = { tx =>
-    tx.asInstanceOf[ErgoLikeTransaction].asJson
-      .mapObject(_.add("size", tx.size.asJson))
-  }
-
-  implicit val transactionDecoder: Decoder[ErgoTransaction] = { cursor =>
-    for {
-      ergoLikeTx <- cursor.as[ErgoLikeTransaction]
-    } yield ErgoTransaction(ergoLikeTx)
-  }
 
 }
 
